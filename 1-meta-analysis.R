@@ -253,7 +253,8 @@ plot(store$slope[store$publish==1],(1/store$standard.error[store$publish==1]),xl
 regtest(x=slope, sei=standard.error, data=store,
         model="rma", predictor="sei", ret.fit=FALSE)
 
+#if there is a publication bias, asymmetry will be significant 
 
-
-
+regtest(x=slope, sei=standard.error, data=store,
+        model="rma", subset=publish==1,predictor="sei", ret.fit=FALSE)
 
