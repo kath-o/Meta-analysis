@@ -167,14 +167,92 @@ funnel(meta2)
 
 
 #question: why doesn't the slope estimate funnel in much this time?
-  #There is substantial heterogeneity in the slope, as is also reflected in the I^2 value and the test for heterogeneity
+  #there is substantial heterogeneity in the slope, as is also reflected in the I^2 value and the test for heterogeneity
 
-#4.3 a meta analysis and controlling for latituse 
+#4.3 a meta analysis and controlling for latitude 
 #a meta-analysis model can be run in the same way as an lm or lmm and we can include fixed and random effects
 #common to see fixed effects referred to as moderators, so all we need to add to the rma function is the model formula to include latitude as a covariate 
 
 meta3<-rma(yi=slope,sei=standard.error,mods=~latitude,data=store2)
 meta3
+funnel(meta3)
+
+#look at latitude, slope and tau value
+#should be similar to latitudinal slope we simulated and the residual se in slopes that we simulated 
+#we see after controlling for the effect of latitude, there is still some heterogeneity in slopes, but this is much less than in the meta2 model
+#tau estimate will still be a bit elevated as we haven't taken into account the variance among species given by our species level random effects 
+
+#4.4 A meta-analysis with random terms 
+#next add a random term to our meta analysis 
+#shift to using the rma.mv function and can add a random term by adding the argument random=~1|yourterm
+#included the slope variance as the square of the standard error
+#included an observation level random effect (to estimate the residual variance)
+
+store2$se2<-store2$standard.error^2
+store3<-store2[-which(is.na(store2$slope)==TRUE),]
+#this function won't run with NAs, so we remove those rows
+meta4<-rma.mv(yi=slope,V=se2,mods=~latitude,random=~1|species/ID,data=store3)
+meta4
+
+#meta4 we can see that the variance estimated among species (sigma^2.1) is similar to the variance we simulated (simulated value = 2^2 = 4)
+#can also see that the residual variance (sigma^2.2) is similar to what we simulated (simulated value = 3^2 = 9)
+#overall our meta-analysis has done a good job of recovering (estimating) the parameters used to generate the data
+
+#5. Confronting a real dataset
+birdbroods<-read.csv("~/Desktop/MSc EEB/WD//Meta-analysis/birdbroods.csv",sep=",",header=TRUE)
+
+#plot the data using a funnel plot and run a meta analysis that includes two random terms 
+
+plot(birdbroods$slope,(1/birdbroods$slope.SE),xlab="Slope",ylab="Precision, (1/se)")
+
+birdbroods$se2<-birdbroods$slope.SE^2
+meta5<-rma.mv(yi=slope,V=se2,random=~1|Species/id.pop,data=birdbroods)
+meta5
+funnel(meta5)
+forest(meta5,cex.lab=0.8,cex.axis=0.8,addfit=TRUE,shade="zebra",order="obs")
+
+#question: has the brood size of the average bird species declined?
+  #no; small estimate and non-significant pval
+#question: is more of the variation in slope estimates distributed among or within species?
+  #
+#question: is trend in brood size more positive for populations in protected areas? 
+meta6<-rma.mv(yi=slope,V=se2,mods=~protected.area,random=~1|Species/id.pop,data=birdbroods)
+meta6
+  #no, more negative 
+#question: if the information was available, what other terms do you think it would be worth including as random effects?
+  #age, body size, first clutch? 
+
+#6. Publication bias 
+#return to the first dataset that we simulated (store)
+#go through each row of data in turn and make it so the probability of being published is:
+  #significant, probability published = 1
+  #non-significant and <= 30 observations, probability published = 0.25
+  #non-significant and >30 observations, probability published = 0.75
+#we will then generate the before and after publication funnel plots 
+
+store<-store[is.na(store$slope)==FALSE,]
+store$publish<-0
+#
+store$publish[store$p.value<=0.05]<-1
+largesamplesize<-intersect(which(store$p.value>0.05),which(store$n>30))
+retainlarge<-largesamplesize[as.logical(rbinom(length(largesamplesize),prob=0.75,size=1))]
+store$publish[retainlarge]<-1
+smallsamplesize<-intersect(which(store$p.value>0.05),which(store$n<=30))
+retainsmall<-smallsamplesize[as.logical(rbinom(length(smallsamplesize),prob=0.25,size=1))]
+
+store$publish[retainsmall]<-1
+
+par(mfrow=c(1,2))
+plot(store$slope,(1/store$standard.error),xlab="Slope",ylab="Precision, (1/se)",main="Before")
+plot(store$slope[store$publish==1],(1/store$standard.error[store$publish==1]),xlab="Slope",ylab="Precision, (1/se)",main="After")
+
+#we see what an extreme case of publication bias looks like - a scarcity of low precision results that are close to the null
+#various tests can be conducted to test for publication bias, one of the most informative is to visualise the funnel plot
+#apply a test of whether final plot is symmetric
+
+regtest(x=slope, sei=standard.error, data=store,
+        model="rma", predictor="sei", ret.fit=FALSE)
+
 
 
 
